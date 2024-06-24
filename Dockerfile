@@ -1,17 +1,19 @@
-FROM python:alpine
+FROM python:3-slim
 
-EXPOSE 8000
+RUN apt-get update && apt-get install -y gcc libev-dev && apt-get clean && apt-get autoclean
 
 RUN mkdir /distkv
 
-COPY ./requirements.txt /distkv/requirements.txt
-COPY ./distkv /distkv/distkv
-COPY ./scripts /distkv/scripts
-COPY ./setup.py /distkv/setup.py
-
 WORKDIR /distkv
-RUN pip install -r requirements.txt
+
+COPY ./distkv distkv
+COPY ./scripts scripts
+COPY ./setup.py setup.py
+COPY ./requirements.txt requirements.txt
+
+RUN pip install --no-cache-dir --no-dependencies -r requirements.txt
 RUN pip install -e .
 
+EXPOSE 8000
 CMD ["distkv", "cluster1", "8000"]
 

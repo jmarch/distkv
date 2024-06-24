@@ -1,0 +1,213 @@
+services:
+  fluentd:
+    image: fluent/fluentd:edge-debian
+    container_name: fluentd
+    hostname: fluentd
+    ports:
+      - 5140:5140
+      - 5140:5140/udp
+      - 9880:9880
+      - 24224:24224
+      - 24224:24224/udp
+      - 24220:24220
+    volumes:
+      - ./config/fluentd/fluent.conf:/fluentd/etc/fluent.conf
+    healthcheck:
+      test: ["CMD-SHELL", "ruby -r net/http -e 'exit Net::HTTP.get_response(URI(\"http://localhost:24220/api/plugins.json\")).is_a?(Net::HTTPSuccess) ? 0 : 1'"]
+      interval: 30s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
+      start_interval: 1s
+    networks:
+      distkv:
+        ipv4_address: 192.168.0.200
+
+  zoo1:
+    image: zookeeper
+    restart: always
+    container_name: zoo1
+    depends_on:
+      - fluentd
+    hostname: zoo1
+    networks:
+      - distkv
+    ports:
+      - 2181:2181
+    environment:
+      FLUENTD_HOST: 192.168.0.200
+      FLUENTD_PORT: 24224
+      ZOO_MY_ID: 1
+      ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "zk.zoo1"
+    profiles: [zk]
+
+  zoo2:
+    image: zookeeper
+    restart: always
+    container_name: zoo2
+    depends_on:
+      - fluentd
+    hostname: zoo2
+    networks:
+      - distkv
+    ports:
+      - 2182:2181
+    environment:
+      FLUENTD_HOST: 192.168.0.200
+      FLUENTD_PORT: 24224
+      ZOO_MY_ID: 2
+      ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "zk.zoo2"
+    profiles: [zk]
+
+  zoo3:
+    image: zookeeper
+    restart: always
+    container_name: zoo3
+    depends_on:
+      - fluentd
+    hostname: zoo3
+    networks:
+      - distkv
+    ports:
+      - 2183:2181
+    environment:
+      FLUENTD_HOST: 192.168.0.200
+      FLUENTD_PORT: 24224
+      ZOO_MY_ID: 3
+      ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "zk.zoo3"
+    profiles: [zk]
+
+  distkv1:
+    build: .
+#    image: distkv:latest
+    container_name: distkv1
+    hostname: distkv1
+    depends_on:
+      - fluentd
+    networks:
+      - distkv
+    command:
+      - /bin/sh
+      - -c
+      - |
+        distkv cluster1 8001
+    ports:
+      - 8001:8001
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "node.distkv1"
+    profiles: [nodes]
+
+  distkv2:
+    build: .
+#    image: distkv:latest
+    container_name: distkv2
+    hostname: distkv2
+    depends_on:
+      - fluentd
+    networks:
+      - distkv
+    command:
+      - /bin/sh
+      - -c
+      - |
+        distkv cluster1 8002
+    ports:
+      - 8002:8002
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "node.distkv2"
+    profiles: [nodes]
+
+  distkv3:
+    build: .
+#    image: distkv:latest
+    container_name: distkv3
+    hostname: distkv3
+    depends_on:
+      - fluentd
+    networks:
+      - distkv
+    command:
+      - /bin/sh
+      - -c
+      - |
+        distkv cluster1 8003
+    ports:
+      - 8003:8003
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "node.distkv3"
+    profiles: [nodes]
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    depends_on:
+      - fluentd
+    hostname: prometheus
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - 9090:9090
+    networks:
+      - distkv
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "prometheus"
+    profiles: [monitoring]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      - prometheus
+    hostname: grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=distkvFTW!
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - distkv
+#    logging:
+#      driver: "fluentd"
+#      options:
+#        fluentd-address: 192.168.0.200:24224
+#        tag: "grafana"
+    profiles: [monitoring]
+
+networks:
+  distkv:
+    name: distkv
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: "192.168.0.0/24"
+          gateway: "192.168.0.1"
