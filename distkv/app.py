@@ -3,7 +3,8 @@ from .lru_cache import LRUCache
 from .zookeeper_coordinator import ZookeeperCoordinator
 
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram
-from wsgiref.simple_server import make_server
+#from wsgiref.simple_server import make_server
+import bjoern
 import falcon
 import json
 import socket
@@ -88,12 +89,13 @@ def main():
     app.add_route('/metrics', MetricsResource())
 
     # Serve the falcon app, after registering this server with Zookeeper and the consistent hasher
-    with make_server('', server_port, app) as httpd:
+    try:
+        print("Starting server...")
         coordinator.register_node(server_str)
-        print(f"Serving on {server_str}...")
-        try:
-            httpd.serve_forever()
-        except:
-            coordinator.unregister_node(server_str)
-            coordinator.shutdown()
+        bjoern.run(app, '0.0.0.0', server_port)
+    except Exception as e:
+        print(f"EXCEPTION: {e}")
+    finally:
+        coordinator.unregister_node(server_str)
+        coordinator.shutdown()
 
