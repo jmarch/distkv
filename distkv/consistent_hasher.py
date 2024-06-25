@@ -3,7 +3,7 @@ import threading
 
 
 class ConsistentHasher:
-    def __init__(self, replicas=3) -> Self:
+    def __init__(self, replicas=3) -> None:
         self.replicas = replicas
         self.ring = dict()
         self.sorted_keys = []
