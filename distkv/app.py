@@ -90,7 +90,7 @@ def main():
 
     # Serve the falcon app, after registering this server with Zookeeper and the consistent hasher
     try:
-        print("Starting server...")
+        print(f"Starting server {server_str}...")
         coordinator.register_node(server_str)
         bjoern.run(app, '0.0.0.0', server_port)
     except Exception as e:
